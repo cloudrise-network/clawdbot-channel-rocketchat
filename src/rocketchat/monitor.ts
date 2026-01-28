@@ -204,7 +204,10 @@ export async function monitorRocketChatProvider(
   try {
     const subscriptions = await fetchRocketChatSubscriptions(client);
     const roomIds = subscriptions
-      .filter(sub => sub.open !== false)
+      // Subscribe to *all* rooms this user is a member of, including DMs.
+      // Some Rocket.Chat servers mark DMs (and other rooms) as open=false until the user opens them in the UI;
+      // filtering on `open` breaks DM delivery.
+      .filter(sub => sub.t !== "l")
       .map(sub => sub.rid);
     
     logger.info?.(`[${account.accountId}] Subscribing to ${roomIds.length} rooms`);
