@@ -1,5 +1,5 @@
 {
-  "name": "clawdbot-channel-rocketchat",
+  "name": "@cloudrise/clawdbot-channel-rocketchat",
   "version": "0.1.0",
   "description": "Rocket.Chat channel plugin for Clawdbot (REST + Realtime/DDP)",
   "license": "MIT",
@@ -15,10 +15,11 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "echo 'No build step yet (TS is loaded directly by Clawdbot in dev). Add tsup/tsc when publishing to npm.'"
+    "build": "tsup index.ts --format esm --dts --out-dir dist",
+    "prepublishOnly": "npm run build"
   },
   "clawdbot": {
-    "extensions": ["./index.ts"],
+    "extensions": ["./dist/index.js"],
     "channel": {
       "id": "rocketchat",
       "label": "Rocket.Chat",
@@ -35,5 +36,9 @@
   },
   "peerDependencies": {
     "clawdbot": "*"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.4.0"
   }
 }
