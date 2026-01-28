@@ -1,0 +1,39 @@
+{
+  "name": "clawdbot-channel-rocketchat",
+  "version": "0.1.0",
+  "description": "Rocket.Chat channel plugin for Clawdbot (REST + Realtime/DDP)",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "src/",
+    "index.ts",
+    "clawdbot.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "echo 'No build step yet (TS is loaded directly by Clawdbot in dev). Add tsup/tsc when publishing to npm.'"
+  },
+  "clawdbot": {
+    "extensions": ["./index.ts"],
+    "channel": {
+      "id": "rocketchat",
+      "label": "Rocket.Chat",
+      "selectionLabel": "Rocket.Chat (plugin)",
+      "docsPath": "/channels/rocketchat",
+      "docsLabel": "rocketchat",
+      "blurb": "Self-hosted team chat via Rocket.Chat REST + Realtime API.",
+      "order": 66,
+      "aliases": ["rc", "rocket"]
+    }
+  },
+  "dependencies": {
+    "ws": "^8.14.0"
+  },
+  "peerDependencies": {
+    "clawdbot": "*"
+  }
+}

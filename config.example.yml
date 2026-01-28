@@ -1,0 +1,15 @@
+# Example Clawdbot config snippet for Rocket.Chat
+
+channels:
+  rocketchat:
+    baseUrl: "https://chat.example.com"
+    userId: "<ROCKETCHAT_USER_ID>"
+    authToken: "<ROCKETCHAT_AUTH_TOKEN>"
+
+    replyMode: auto
+    typingDelayMs: 500
+
+    rooms:
+      GENERAL:
+        requireMention: false
+        # replyMode: channel
