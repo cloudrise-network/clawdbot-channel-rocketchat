@@ -2,6 +2,7 @@
 
 channels:
   rocketchat:
+    # --- Option A: single account (legacy / default) ---
     baseUrl: "https://chat.example.com"
     userId: "<ROCKETCHAT_USER_ID>"
     authToken: "<ROCKETCHAT_AUTH_TOKEN>"
@@ -13,3 +14,24 @@ channels:
       GENERAL:
         requireMention: false
         # replyMode: channel
+
+    # --- Option B: multiple accounts / multiple Rocket.Chat servers ---
+    # accounts:
+    #   prod:
+    #     name: "Prod RC"
+    #     baseUrl: "https://chat.example.com"
+    #     userId: "<PROD_USER_ID>"
+    #     authToken: "<PROD_AUTH_TOKEN>"
+    #
+    #     replyMode: auto
+    #     typingDelayMs: 500
+    #
+    #     rooms:
+    #       GENERAL:
+    #         requireMention: false
+    #
+    #   staging:
+    #     name: "Staging RC"
+    #     baseUrl: "https://chat-staging.example.com"
+    #     userId: "<STAGING_USER_ID>"
+    #     authToken: "<STAGING_AUTH_TOKEN>"

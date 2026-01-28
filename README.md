@@ -59,7 +59,7 @@ Then restart the gateway.
 
 > Use the room **rid** (e.g. `GENERAL`) for per-room settings.
 
-### Minimal
+### Minimal (single account)
 
 ```yaml
 channels:
@@ -68,6 +68,31 @@ channels:
     userId: "<ROCKETCHAT_USER_ID>"
     authToken: "<ROCKETCHAT_AUTH_TOKEN>"
 ```
+
+### Multiple accounts / multiple Rocket.Chat servers
+
+You can configure multiple Rocket.Chat “accounts” under `channels.rocketchat.accounts` and choose which one to use via `accountId` when sending.
+
+```yaml
+channels:
+  rocketchat:
+    accounts:
+      prod:
+        name: "Prod RC"
+        baseUrl: "https://chat.example.com"
+        userId: "<PROD_USER_ID>"
+        authToken: "<PROD_AUTH_TOKEN>"
+
+      staging:
+        name: "Staging RC"
+        baseUrl: "https://chat-staging.example.com"
+        userId: "<STAGING_USER_ID>"
+        authToken: "<STAGING_AUTH_TOKEN>"
+```
+
+Notes:
+- The legacy single-account format (top-level `baseUrl/userId/authToken`) still works and is treated as `accountId: default`.
+- Per-room settings live under each account (e.g. `channels.rocketchat.accounts.prod.rooms`).
 
 ### Reply routing (thread vs channel)
 
@@ -105,6 +130,8 @@ channels:
     # Delay (ms) before emitting typing indicator
     typingDelayMs: 500
 ```
+
+(When using multiple accounts, this can also be set per account at `channels.rocketchat.accounts.<accountId>.typingDelayMs`.)
 
 Typing indicators are emitted via DDP `stream-notify-room` using `<RID>/user-activity`.
 - Channel replies emit typing without `tmid` → shows under channel composer
