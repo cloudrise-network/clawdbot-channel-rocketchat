@@ -12,6 +12,49 @@ Neutral, self-host friendly Rocket.Chat channel plugin for **Clawdbot**.
 
 This repository is intended to be publishable (no secrets committed).
 
+## Install
+
+### Install from npm
+
+```bash
+npm install @cloudrise/clawdbot-channel-rocketchat
+```
+
+### Configure Clawdbot to load the plugin
+
+You need to tell Clawdbot to load the installed plugin.
+
+**Option A (recommended): install via plugins.installs (npm source)**
+
+Add something like this to your Clawdbot config:
+
+```yaml
+plugins:
+  installs:
+    rocketchat:
+      source: npm
+      spec: "@cloudrise/clawdbot-channel-rocketchat"
+  entries:
+    rocketchat:
+      enabled: true
+```
+
+**Option B: load from a local path**
+
+If you prefer to manage install paths manually:
+
+```yaml
+plugins:
+  load:
+    paths:
+      - /absolute/path/to/node_modules/@cloudrise/clawdbot-channel-rocketchat
+  entries:
+    rocketchat:
+      enabled: true
+```
+
+Then restart the gateway.
+
 ## Configuration
 
 > Use the room **rid** (e.g. `GENERAL`) for per-room settings.
