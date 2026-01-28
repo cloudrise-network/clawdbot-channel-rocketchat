@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Create plugin bundle
+        run: |
+          mkdir -p out
+          # Include dist + metadata files that Clawdbot needs
+          cp -r dist clawdbot.plugin.json README.md LICENSE package.json out/
+          (cd out && zip -r ../clawdbot-channel-rocketchat-${GITHUB_REF_NAME}.zip .)
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            clawdbot-channel-rocketchat-${{ github.ref_name }}.zip
