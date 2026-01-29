@@ -1,8 +1,27 @@
 {
   "name": "@cloudrise/clawdbot-channel-rocketchat",
-  "version": "0.2.1",
-  "description": "Rocket.Chat channel plugin for Clawdbot (REST + Realtime/DDP)",
+  "version": "0.2.2",
+  "description": "Rocket.Chat channel plugin for Clawdbot/Moltbot (REST + Realtime/DDP)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudrise-network/clawdbot-channel-rocketchat.git"
+  },
+  "homepage": "https://github.com/cloudrise-network/clawdbot-channel-rocketchat#readme",
+  "bugs": {
+    "url": "https://github.com/cloudrise-network/clawdbot-channel-rocketchat/issues"
+  },
+  "keywords": [
+    "moltbot",
+    "clawdbot",
+    "clawdbot-plugin",
+    "gateway-plugin",
+    "channel",
+    "rocketchat",
+    "rocket.chat",
+    "chat",
+    "self-hosted"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
