@@ -55,11 +55,18 @@ export class RocketChatRealtime {
     resolve: (result: unknown) => void;
     reject: (error: Error) => void;
   }>();
-  private subscriptions = new Map<string, string>();
+
+  // Desired room subscriptions survive reconnects.
+  private desiredRoomIds = new Set<string>();
+  // Subscription ids are per-connection; re-created on each reconnect.
+  private activeSubIdsByRoom = new Map<string, string>();
+
   private pingInterval: NodeJS.Timeout | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private isConnected = false;
   private shouldReconnect = true;
+  private reconnectDelayMs = 5_000;
+  private readonly reconnectMaxDelayMs = 60_000;
 
   constructor(opts: RealtimeOpts) {
     this.opts = opts;
@@ -84,8 +91,25 @@ export class RocketChatRealtime {
     return new Promise((resolve, reject) => {
       const wsUrl = this.getWsUrl();
       this.opts.logger?.debug?.(`Connecting to ${wsUrl}`);
-      
+
+      // Reset per-connection state.
+      this.isConnected = false;
+      this.activeSubIdsByRoom.clear();
+
+      // Create a new socket.
       this.ws = new WebSocket(wsUrl);
+
+      let settled = false;
+      const resolveOnce = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const rejectOnce = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
 
       this.ws.on("open", () => {
         // Send DDP connect message
@@ -95,17 +119,29 @@ export class RocketChatRealtime {
       this.ws.on("message", async (data) => {
         try {
           const msg = JSON.parse(data.toString()) as DDPMessage;
-          await this.handleMessage(msg, resolve);
+          await this.handleMessage(msg, resolveOnce);
         } catch (err) {
           this.opts.logger?.debug?.(`Failed to parse message: ${err}`);
         }
       });
 
-      this.ws.on("close", (code, reason) => {
+      this.ws.on("close", (_code, reason) => {
+        const reasonStr = reason?.toString();
+
+        // If we never fully connected, fail the connect() call so callers can react.
+        if (!this.isConnected) {
+          rejectOnce(new Error(reasonStr || "WebSocket closed before DDP connected"));
+        }
+
         this.isConnected = false;
-        this.opts.onDisconnect?.(reason?.toString());
+        this.opts.onDisconnect?.(reasonStr);
+
         this.stopPing();
-        
+        this.rejectAllPending(new Error(reasonStr || "Disconnected"));
+
+        // Clear socket reference.
+        this.ws = null;
+
         if (this.shouldReconnect) {
           this.scheduleReconnect();
         }
@@ -113,7 +149,10 @@ export class RocketChatRealtime {
 
       this.ws.on("error", (err) => {
         this.opts.onError?.(err);
-        reject(err);
+        // If we haven't connected yet, fail connect(); otherwise close handler will schedule reconnect.
+        if (!this.isConnected) {
+          rejectOnce(err);
+        }
       });
     });
   }
@@ -123,8 +162,18 @@ export class RocketChatRealtime {
       case "connected":
         this.opts.logger?.debug?.("DDP connected, logging in...");
         await this.login();
+
         this.isConnected = true;
+        // Reset reconnect delay after a successful connection.
+        this.reconnectDelayMs = 5_000;
+
         this.startPing();
+
+        // Re-subscribe to desired rooms after login.
+        await this.resubscribeAll().catch((err) => {
+          this.opts.logger?.debug?.(`Resubscribe failed: ${String(err)}`);
+        });
+
         this.opts.onConnect?.();
         onConnected?.();
         break;
@@ -192,18 +241,28 @@ export class RocketChatRealtime {
   }
 
   async subscribeToRoom(roomId: string): Promise<void> {
-    if (this.subscriptions.has(roomId)) return;
+    const trimmed = roomId.trim();
+    if (!trimmed) return;
+
+    // Always remember desired subscriptions so they survive reconnects.
+    this.desiredRoomIds.add(trimmed);
+
+    // If we're not connected yet (or socket isn't open), we'll subscribe on connect.
+    if (!this.isConnected || this.ws?.readyState !== WebSocket.OPEN) return;
+
+    // Avoid duplicate sub messages for this connection.
+    if (this.activeSubIdsByRoom.has(trimmed)) return;
 
     const id = this.nextId();
-    this.subscriptions.set(roomId, id);
-    
-    this.opts.logger?.debug?.(`Subscribing to room: ${roomId} with sub id: ${id}`);
+    this.activeSubIdsByRoom.set(trimmed, id);
+
+    this.opts.logger?.debug?.(`Subscribing to room: ${trimmed} with sub id: ${id}`);
 
     this.send({
       msg: "sub",
       id,
       name: "stream-room-messages",
-      params: [roomId, false],
+      params: [trimmed, false],
     } as unknown as DDPMessage);
   }
 
@@ -228,18 +287,27 @@ export class RocketChatRealtime {
 
   private scheduleReconnect(): void {
     if (this.reconnectTimeout) return;
-    this.opts.logger?.debug?.("Scheduling reconnect in 5s...");
+
+    const delay = Math.min(this.reconnectDelayMs, this.reconnectMaxDelayMs);
+    this.opts.logger?.debug?.(`Scheduling reconnect in ${Math.round(delay / 1000)}s...`);
+
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;
       this.connect().catch((err) => {
+        // If connect fails, keep retrying (up to 60s cadence).
         this.opts.onError?.(err);
+        if (this.shouldReconnect) this.scheduleReconnect();
       });
-    }, 5000);
+    }, delay);
+
+    // Backoff to a max of 60s.
+    this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, this.reconnectMaxDelayMs);
   }
 
   disconnect(): void {
     this.shouldReconnect = false;
     this.stopPing();
+    this.rejectAllPending(new Error("Disconnected"));
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -247,6 +315,33 @@ export class RocketChatRealtime {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
+    }
+  }
+
+  private rejectAllPending(err: Error): void {
+    for (const [, pending] of this.pendingCalls) {
+      try {
+        pending.reject(err);
+      } catch {
+        // ignore
+      }
+    }
+    this.pendingCalls.clear();
+  }
+
+  private async resubscribeAll(): Promise<void> {
+    if (!this.isConnected) return;
+
+    // Reset per-connection subscription tracking.
+    this.activeSubIdsByRoom.clear();
+
+    const rooms = Array.from(this.desiredRoomIds);
+    if (rooms.length) {
+      this.opts.logger?.debug?.(`Re-subscribing to ${rooms.length} rooms...`);
+    }
+
+    for (const rid of rooms) {
+      await this.subscribeToRoom(rid);
     }
   }
 

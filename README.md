@@ -1,6 +1,50 @@
-# Clawdbot Rocket.Chat Channel Plugin
+# Clawdbot (Moltbot) Rocket.Chat Channel Plugin
 
-Neutral, self-host friendly Rocket.Chat channel plugin for **Clawdbot**.
+[![npm](https://img.shields.io/npm/v/@cloudrise/clawdbot-channel-rocketchat)](https://www.npmjs.com/package/@cloudrise/clawdbot-channel-rocketchat)
+[![license](https://img.shields.io/npm/l/@cloudrise/clawdbot-channel-rocketchat)](LICENSE)
+
+Neutral, self-host friendly Rocket.Chat channel plugin for **Clawdbot / Moltbot**.
+
+> Clawdbot has been renamed to **Moltbot** (copyright). This plugin works with both names in docs/search.
+
+## Quickstart (5–10 minutes)
+
+1) **Create a Rocket.Chat bot user** (or a dedicated user account) and obtain:
+   - `userId`
+   - `authToken` (treat like a password)
+
+2) **Add the bot user to the rooms** you want it to monitor (channels/private groups). For DMs, ensure users can message the bot.
+
+3) **Install + enable the plugin in Moltbot/Clawdbot**:
+
+```yaml
+plugins:
+  installs:
+    rocketchat:
+      source: npm
+      spec: "@cloudrise/clawdbot-channel-rocketchat"
+  entries:
+    rocketchat:
+      enabled: true
+
+channels:
+  rocketchat:
+    baseUrl: "https://chat.example.com"
+    userId: "<ROCKETCHAT_USER_ID>"
+    authToken: "<ROCKETCHAT_AUTH_TOKEN>"
+
+    # Optional: keep noise down
+    replyMode: auto
+    rooms:
+      GENERAL:
+        requireMention: true
+```
+
+4) **Restart the gateway**.
+
+5) **Test** by @mentioning the bot in a room it’s a member of.
+
+---
 
 ## Authors
 

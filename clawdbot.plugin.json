@@ -2,7 +2,7 @@
   "id": "clawdbot-channel-rocketchat",
   "name": "Rocket.Chat",
   "description": "Rocket.Chat channel plugin for Clawdbot",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "channels": ["rocketchat"],
   "configSchema": {
     "type": "object",
