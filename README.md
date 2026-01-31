@@ -166,6 +166,22 @@ Prefix your message:
 
 (The prefix is stripped before the message is sent to the agent.)
 
+### Model selection (per message)
+
+This plugin passes through Clawdbot/Moltbot **inline model directives**, so you can switch models mid-conversation.
+
+Examples:
+- `/model openai/gpt-5.2 write a limerick`
+- `/chatgpt summarize this thread`
+- `/opus be extra careful and thorough`
+
+Rocket.Chat convenience:
+- `--model chatgpt …` is normalized to `/model chatgpt …`
+- `--chatgpt …` is normalized to `/chatgpt …`
+- `-chatgpt …` is normalized to `/chatgpt …` (for aliases defined in your config)
+
+Note: directives are parsed from the inbound message, but the directive tokens are stripped from the actual prompt sent to the model.
+
 ### Typing indicator
 
 ```yaml

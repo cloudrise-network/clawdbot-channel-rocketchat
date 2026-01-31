@@ -71,14 +71,12 @@ function chatType(kind: "dm" | "group" | "channel"): "direct" | "group" | "chann
 export async function monitorRocketChatProvider(
   opts: MonitorRocketChatOpts
 ): Promise<() => void> {
-  console.log("[ROCKETCHAT DEBUG] monitorRocketChatProvider called!");
   const core = getRocketChatRuntime();
   const logger = core?.logging?.getChildLogger?.({ module: "rocketchat" }) ?? {
     info: console.log,
     debug: console.log,
     error: console.error,
   };
-  console.log("[ROCKETCHAT DEBUG] Got logger, getting config...");
   const cfg = opts.config ?? core?.config?.loadConfig?.() ?? {};
 
   const account = resolveRocketChatAccount({
@@ -275,6 +273,22 @@ async function handleIncomingMessage(
   let rawBody = msg.msg.trim();
   if (!rawBody) return;
 
+  // Model selector convenience: allow '-qwen' / '--model' style triggers
+  // by converting them into the Clawdbot inline directive form '/qwen' / '/model'.
+  //
+  // IMPORTANT: we will parse directives from RawBody/BodyForCommands, but we should
+  // not send those directive tokens to the model prompt (BodyForAgent).
+  const modelAliases = Object.values(cfg.agents?.defaults?.models ?? {})
+    .map((entry: any) => String((entry as any)?.alias ?? "").trim())
+    .filter(Boolean);
+
+  for (const alias of modelAliases) {
+    // Replace '-alias' tokens with '/alias' tokens (start-of-string or whitespace boundary).
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|\\s)-${escaped}(?=$|\\s|:)`, "g");
+    rawBody = rawBody.replace(re, `$1/${alias}`);
+  }
+
   // Optional per-message overrides
   // - !thread  -> force reply in thread
   // - !channel -> force reply in channel
@@ -377,10 +391,76 @@ async function handleIncomingMessage(
   }) ?? rawBody;
 
   // Finalize inbound context
+
+  // Normalize alternate directive syntax to what Clawdbot understands.
+  // Users sometimes type GNU-style flags in Rocket.Chat:
+  //   --chatgpt hello   -> /chatgpt hello
+  //   --model chatgpt   -> /model chatgpt
+  let normalizedCommandText = rawBody
+    .replace(/(^|\s)--(opus|chatgpt|codex|qwen|qwen3|llama)(?=$|\s|:)/gi, "$1/$2")
+    .replace(/(^|\s)--model(?=$|\s|:)/gi, "$1/model");
+
+  // Clawdbot clears inline directives if the message still has non-directive text
+  // (e.g. "/chatgpt hi"). For Rocket.Chat, we want a one-message UX.
+  // So: split a leading model directive into a command-only body + remainder prompt.
+  const splitModelDirective = (text: string): { commandOnly?: string; remainder?: string } => {
+    // Allow "chad /model ..." or "@chad /qwen3 ..." style invocations.
+    const withoutInvoke = text.replace(/^\s*@?chad\b\s*/i, "");
+
+    const modelMatch = withoutInvoke.match(/^\s*\/model(?=$|\s|:)\s*:?(?:\s*([A-Za-z0-9_.:@\/-]+))?\s*(.*)$/i);
+    if (modelMatch) {
+      const rawModel = (modelMatch[1] ?? "").trim();
+      const rest = (modelMatch[2] ?? "").trim();
+      const commandOnly = rawModel ? `/model ${rawModel}` : `/model`;
+      return { commandOnly, remainder: rest };
+    }
+
+    const aliasMatch = withoutInvoke.match(/^\s*\/(opus|chatgpt|codex|qwen|qwen3|llama)(?=$|\s|:)\s*:?(.*)$/i);
+    if (aliasMatch) {
+      const alias = aliasMatch[1].trim();
+      const rest = (aliasMatch[2] ?? "").trim();
+      return { commandOnly: `/${alias}`, remainder: rest };
+    }
+
+    return {};
+  };
+
+  const split = splitModelDirective(normalizedCommandText);
+  const bodyForCommands = split.commandOnly ?? normalizedCommandText;
+
+  const bodyForAgent = (() => {
+    if (typeof split.remainder === "string") {
+      return split.remainder.length > 0 ? split.remainder : "";
+    }
+
+    // Otherwise strip directives so we don't waste prompt tokens.
+    let out = body;
+    out = out.replace(/^\s*@?chad\b\s*/i, "");
+    out = out
+      .replace(/(?:^|\s)\/model(?=$|\s|:)\s*:?(?:\s*[A-Za-z0-9_.:@\/-]+)?/gi, " ")
+      .replace(/(?:^|\s)\/(?:opus|chatgpt|codex|qwen|qwen3|llama)(?=$|\s|:)/gi, " ")
+      .replace(/(?:^|\s)--(?:opus|chatgpt|codex|qwen|qwen3|llama)(?=$|\s|:)/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return out || body;
+  })();
+
+  // If CommandAuthorized defaults to false, Clawdbot will parse directives but ignore them.
+  // Rocket.Chat policy here: allow text commands.
+  const commandAuthorized = true;
+
   const ctxPayload = core.channel?.reply?.finalizeInboundContext?.({
     Body: body,
+    BodyForAgent: bodyForAgent,
     RawBody: rawBody,
-    CommandBody: rawBody,
+
+    // Provide clean directive parsing input.
+    CommandBody: bodyForCommands,
+    BodyForCommands: bodyForCommands,
+    CommandSource: "text",
+    CommandAuthorized: commandAuthorized,
+
     From: isGroup ? `rocketchat:room:${roomId}` : `rocketchat:${senderId}`,
     To: `rocketchat:${roomId}`,
     SessionKey: route.sessionKey,
