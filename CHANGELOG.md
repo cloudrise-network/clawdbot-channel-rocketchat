@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.5
+- Fix: normalize `rocketchat:<rid>` to `room:<rid>` so attachments/replies route correctly.
+- Add: outbound reaction API (`chat.react`) wiring.
+- Relax: accept alphanumeric room IDs 17–64 chars.
+
 ## 0.2.4
 - Fix: allow inline model directives (e.g. `/model …`, `/chatgpt …`) to apply even when the message also contains normal prompt text.
 - Fix: strip directive tokens from the prompt sent to the model (prevents wasting tokens / confusion).
