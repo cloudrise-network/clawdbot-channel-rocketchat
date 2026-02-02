@@ -56,6 +56,26 @@ channels:
 
 This repository is intended to be publishable (no secrets committed).
 
+## Notes / gotchas
+
+### Target normalization
+
+Clawdbot/OpenClaw may hand the channel a destination in the form:
+
+- `rocketchat:<roomId>`
+
+Rocket.Chat expects one of:
+
+- `room:<roomId>`
+- `#channelName`
+- `@username`
+
+This plugin normalizes `rocketchat:<roomId>` → `room:<roomId>` so replies + media uploads route correctly without manual intervention.
+
+### Room id length
+
+Rocket.Chat room IDs vary by deployment; this plugin treats **alphanumeric IDs ~17–64 chars** as valid room IDs.
+
 ## Install
 
 ### Install from npm

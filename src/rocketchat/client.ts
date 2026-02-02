@@ -225,3 +225,33 @@ export async function sendRocketChatTyping(
     body: JSON.stringify({ roomId, typing: Boolean(isTyping) }),
   });
 }
+
+/**
+ * React to a message with an emoji.
+ * @param emoji - Emoji name (e.g., "thumbsup", ":thumbsup:", or unicode "🚀")
+ * @param shouldReact - true to add reaction, false to remove (default: true)
+ */
+export async function reactRocketChatMessage(
+  client: RocketChatClient,
+  messageId: string,
+  emoji: string,
+  shouldReact = true
+): Promise<void> {
+  // Normalize emoji format - RC accepts "thumbsup", ":thumbsup:", or unicode
+  const normalizedEmoji = emoji.startsWith(":")
+    ? emoji
+    : `:${emoji.replace(/:/g, "")}:`;
+
+  const res = await rcFetch<{ success: boolean }>(client, "/api/v1/chat.react", {
+    method: "POST",
+    body: JSON.stringify({
+      messageId,
+      emoji: normalizedEmoji,
+      shouldReact,
+    }),
+  });
+
+  if (!res.success) {
+    throw new Error("Rocket.Chat reaction failed");
+  }
+}

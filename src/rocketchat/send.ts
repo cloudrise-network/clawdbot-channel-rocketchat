@@ -10,6 +10,7 @@ import {
   fetchRocketChatUserByUsername,
   normalizeRocketChatBaseUrl,
   postRocketChatMessage,
+  reactRocketChatMessage,
   type RocketChatUser,
 } from "./client.js";
 import { getRocketChatRuntime } from "../runtime.js";
@@ -23,6 +24,11 @@ export type RocketChatSendOpts = {
 export type RocketChatSendResult = {
   messageId: string;
   roomId: string;
+};
+
+export type RocketChatReactOpts = {
+  accountId?: string;
+  shouldReact?: boolean;
 };
 
 type RocketChatTarget =
@@ -53,6 +59,13 @@ function parseRocketChatTarget(raw: string): RocketChatTarget {
 
   const lower = trimmed.toLowerCase();
 
+  // rocketchat:ID (Clawdbot/OpenClaw sometimes uses this format)
+  if (lower.startsWith("rocketchat:")) {
+    const id = trimmed.slice("rocketchat:".length).trim();
+    if (!id) throw new Error("Room id is required for Rocket.Chat sends");
+    return { kind: "room", id };
+  }
+
   // room:ID format
   if (lower.startsWith("room:")) {
     const id = trimmed.slice("room:".length).trim();
@@ -82,8 +95,8 @@ function parseRocketChatTarget(raw: string): RocketChatTarget {
   }
 
   // Default to channel name (could also be room ID)
-  if (trimmed.includes("/") || /^[A-Za-z0-9]{17}$/.test(trimmed)) {
-    // Looks like a room ID
+  // Room IDs vary; commonly 17-char tokens or 24-char Mongo ObjectIds, but allow growth.
+  if (trimmed.includes("/") || /^[A-Za-z0-9]{17,64}$/.test(trimmed)) {
     return { kind: "room", id: trimmed };
   }
 
@@ -192,4 +205,54 @@ export async function sendMessageRocketChat(
     messageId: post._id ?? "unknown",
     roomId: post.rid ?? roomId,
   };
+}
+
+/**
+ * React to a Rocket.Chat message with an emoji.
+ * @param messageId - The message ID to react to
+ * @param emoji - Emoji name (e.g., "thumbsup", ":rocket:", "🚀")
+ */
+export async function reactMessageRocketChat(
+  messageId: string,
+  emoji: string,
+  opts: RocketChatReactOpts = {}
+): Promise<void> {
+  const core = getRocketChatRuntime();
+  const logger = core?.logging?.getChildLogger?.({ module: "rocketchat" });
+  const cfg = core?.config?.loadConfig?.() ?? {};
+
+  const account = resolveRocketChatAccount({ cfg, accountId: opts.accountId });
+
+  const authToken = account.authToken?.trim();
+  if (!authToken) {
+    throw new Error(
+      `Rocket.Chat authToken missing for account "${account.accountId}"`
+    );
+  }
+
+  const userId = account.userId?.trim();
+  if (!userId) {
+    throw new Error(
+      `Rocket.Chat userId missing for account "${account.accountId}"`
+    );
+  }
+
+  const baseUrl = normalizeRocketChatBaseUrl(account.baseUrl);
+  if (!baseUrl) {
+    throw new Error(
+      `Rocket.Chat baseUrl missing for account "${account.accountId}"`
+    );
+  }
+
+  const client = createRocketChatClient({ baseUrl, userId, authToken });
+
+  logger?.debug?.(`Reacting to message ${messageId} with ${emoji}`);
+
+  await reactRocketChatMessage(client, messageId, emoji, opts.shouldReact ?? true);
+
+  core?.channel?.activity?.record?.({
+    channel: "rocketchat",
+    accountId: account.accountId,
+    direction: "outbound",
+  });
 }

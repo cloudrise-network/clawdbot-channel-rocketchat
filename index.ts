@@ -11,6 +11,9 @@ import { emptyPluginConfigSchema } from "clawdbot/plugin-sdk";
 import { rocketChatPlugin } from "./src/channel.js";
 import { setRocketChatRuntime } from "./src/runtime.js";
 
+// Re-export send/react functions for the message tool (and programmatic use)
+export { reactMessageRocketChat, sendMessageRocketChat } from "./src/rocketchat/send.js";
+
 const plugin = {
   id: "rocketchat",
   name: "Rocket.Chat",
